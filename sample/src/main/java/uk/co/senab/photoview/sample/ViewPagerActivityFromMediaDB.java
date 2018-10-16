@@ -8,17 +8,23 @@ import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Bundle;
+import android.os.Handler;
 import android.provider.MediaStore;
 import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.view.PagerAdapter;
+import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 
 import java.io.File;
 
+import uk.co.senab.photoview.IPhotoView;
 import uk.co.senab.photoview.PhotoView;
+import uk.co.senab.photoview.log.LogManager;
 
 /** activity demonstrating swipable ViewPager from media-db.
  *
@@ -27,7 +33,7 @@ import uk.co.senab.photoview.PhotoView;
  *
  * Created by k3b on 13.06.2016.
  */
-public class ViewPagerActivityFromMediaDB extends Activity
+public class ViewPagerActivityFromMediaDB extends AppCompatActivity
         implements ActivityCompat.OnRequestPermissionsResultCallback {
     public static final String LOG_TAG = "ViewPagerAct-MediaDB";
 
@@ -36,6 +42,9 @@ public class ViewPagerActivityFromMediaDB extends Activity
     private static final String[] PERMISSIONS = {NEEDED_PERMISSION};
 
     private HackyViewPager mViewPager;
+
+    private final Handler handler = new Handler();
+    private boolean rotating = false;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -50,6 +59,78 @@ public class ViewPagerActivityFromMediaDB extends Activity
 
         showData();
 
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.rotate_menue, menu);
+        return super.onCreateOptionsMenu(menu);
+    }
+
+    @Override
+    public boolean onPrepareOptionsMenu(Menu menu) {
+        MenuItem debug = menu.findItem(R.id.logging_enabled);
+        debug.setChecked(LogManager.isDebugEnabled());
+
+        return super.onPrepareOptionsMenu(menu);
+    }
+
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case R.id.menu_Rotate_10_Right:
+                getCurrentPhotoView().setRotationBy(10);
+                return true;
+            case R.id.menu_Rotate_10_Left:
+                getCurrentPhotoView().setRotationBy(-10);
+                return true;
+            case R.id.menu_Toggle_automatic_rotation:
+                toggleRotation();
+                return true;
+            case R.id.menu_Reset_to_0:
+                getCurrentPhotoView().setRotationTo(0);
+                return true;
+            case R.id.menu_Reset_to_90:
+                getCurrentPhotoView().setRotationTo(90);
+                return true;
+            case R.id.menu_Reset_to_180:
+                getCurrentPhotoView().setRotationTo(180);
+                return true;
+            case R.id.menu_Reset_to_270:
+                getCurrentPhotoView().setRotationTo(270);
+                return true;
+            case R.id.logging_enabled: {
+                LogManager.setDebugEnabled(!LogManager.isDebugEnabled());
+                return true;
+            }
+        }
+
+        return super.onOptionsItemSelected(item);
+    }
+
+    private void toggleRotation() {
+        if (rotating) {
+            handler.removeCallbacksAndMessages(null);
+        } else {
+            rotateLoop();
+        }
+        rotating = !rotating;
+    }
+
+    private void rotateLoop() {
+        handler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                getCurrentPhotoView().setRotationBy(1);
+                rotateLoop();
+            }
+        }, 15);
+    }
+
+    private IPhotoView getCurrentPhotoView() {
+        int pageID = mViewPager.getCurrentItem();
+        return (PhotoView) mViewPager.getChildAt(pageID);
     }
 
     private void showData() {
