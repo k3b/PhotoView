@@ -1,15 +1,17 @@
 package uk.co.senab.photoview.sample;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.ContentResolver;
+import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Bundle;
 import android.provider.MediaStore;
+import android.support.design.widget.Snackbar;
+import android.support.v4.app.ActivityCompat;
 import android.support.v4.view.PagerAdapter;
-import android.support.v4.view.ViewPager;
-import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
@@ -25,22 +27,107 @@ import uk.co.senab.photoview.PhotoView;
  *
  * Created by k3b on 13.06.2016.
  */
-public class ViewPagerActivityFromMediaDB extends AppCompatActivity {
+public class ViewPagerActivityFromMediaDB extends Activity
+        implements ActivityCompat.OnRequestPermissionsResultCallback {
     public static final String LOG_TAG = "ViewPagerAct-MediaDB";
+
+    private static final int PERMISSION_REQUEST_ID = 0;
+    private static final String NEEDED_PERMISSION = Manifest.permission.WRITE_EXTERNAL_STORAGE;
+    private static final String[] PERMISSIONS = {NEEDED_PERMISSION};
+
+    private HackyViewPager mViewPager;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        Log.d(LOG_TAG, "onCreate");
+
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_view_pager);
-        ViewPager mViewPager = (HackyViewPager) findViewById(R.id.view_pager);
+
+        mViewPager = (HackyViewPager) findViewById(R.id.view_pager);
         setContentView(mViewPager);
 
-        // this is a demo. todo use try catch for error handling. do in seperate non-gui thread
-        Cursor cursor = MediaStore.Images.Media.query(getContentResolver(), MediaStore.Images.Media.EXTERNAL_CONTENT_URI,new String[] {}
-                , null, null, MediaStore.Images.Media.DATE_TAKEN + " DESC");
 
-        final SamplePagerAdapter adapter = new SamplePagerAdapter(this, cursor);
-        mViewPager.setAdapter(adapter);
+        showData();
+
+    }
+
+    private void showData() {
+        if (ActivityCompat.checkSelfPermission(this, NEEDED_PERMISSION)
+                == PackageManager.PERMISSION_GRANTED) {
+            Log.d(LOG_TAG, "showData granted");
+
+            Snackbar.make(mViewPager,
+                    R.string.permission_media_write_available,
+                    Snackbar.LENGTH_SHORT).show();
+
+            // this is a demo. todo use try catch for error handling. do in seperate non-gui thread
+            Cursor cursor = MediaStore.Images.Media.query(getContentResolver(), MediaStore.Images.Media.EXTERNAL_CONTENT_URI, new String[]{}
+                    , null, null, MediaStore.Images.Media.DATE_TAKEN + " DESC");
+
+            final SamplePagerAdapter adapter = new SamplePagerAdapter(this, cursor);
+            mViewPager.setAdapter(adapter);
+        } else {
+            Log.d(LOG_TAG, "showData denyed");
+
+            // Permission is missing and must be requested.
+            requestMediaWritePermission();
+        }
+    }
+
+    private void requestMediaWritePermission() {
+        if (ActivityCompat.shouldShowRequestPermissionRationale(this,
+                NEEDED_PERMISSION)) {
+            // Provide an additional rationale to the user if the permission was not granted
+            // and the user would benefit from additional context for the use of the permission.
+            // Display a SnackBar with cda button to request the missing permission.
+            // onOk proceed
+            Snackbar.make(mViewPager, R.string.permission_media_write_access_required,
+                    Snackbar.LENGTH_INDEFINITE).setAction(R.string.ok, new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    // Request the permission
+                    Log.d(LOG_TAG, "requestCameraPermission shouldShowRequestPermissionRationale");
+
+                    ActivityCompat.requestPermissions(ViewPagerActivityFromMediaDB.this,
+                            PERMISSIONS,
+                            PERMISSION_REQUEST_ID);
+                }
+            }).show();
+        } else {
+            Log.d(LOG_TAG, "requestCameraPermission not shouldShowRequestPermissionRationale");
+            ActivityCompat.requestPermissions(this,
+                    PERMISSIONS, PERMISSION_REQUEST_ID);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions,
+                                            int[] grantResults) {
+        Log.d(LOG_TAG, "onRequestPermissionsResult");
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        // BEGIN_INCLUDE(onRequestPermissionsResult)
+        if (requestCode == PERMISSION_REQUEST_ID) {
+            // Request for camera permission.
+            if (grantResults.length == 1 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // Permission has been granted. Start camera preview Activity.
+
+                Snackbar.make(mViewPager, R.string.permission_media_write_granted,
+                        Snackbar.LENGTH_SHORT)
+                        .show();
+
+                Log.d(LOG_TAG, "onRequestPermissionsResult granted");
+               showData();
+            } else {
+                // Permission request was denied.
+                // show some text
+                Snackbar.make(mViewPager, R.string.permission_media_write_denied,
+                        Snackbar.LENGTH_SHORT)
+                        .show();
+                Log.d(LOG_TAG, "onRequestPermissionsResult denyed");
+            }
+        }
+        // END_INCLUDE(onRequestPermissionsResult)
     }
 
     static class SamplePagerAdapter extends PagerAdapter {

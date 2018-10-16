@@ -17,4 +17,11 @@
     <string name="extract_visible_bitmap">Extract visible bitmap</string>
     <string name="logging_enabled">Detailed logging enabled</string>
 
+    <string name="permission_media_write_access_required">Media/File access is required to display the photos.</string>
+    <string name="ok">OK</string>
+    <string name="camera_permission_not_available">Permission is not available. Requesting Media/File permission.</string>
+    <string name="permission_media_write_available">Media/File permission is available. Starting preview.</string>
+    <string name="permission_media_write_granted">Media/File permission was granted. Starting preview.</string>
+    <string name="permission_media_write_denied">Media/File permission request was denied.</string>
+
 </resources>

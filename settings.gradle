@@ -1,2 +1,4 @@
+// startParameter.offline = true
+
 include 'library'
 include 'sample'
