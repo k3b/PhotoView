@@ -24,7 +24,6 @@ import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
 import android.support.annotation.Nullable;
 import android.support.v4.view.MotionEventCompat;
-import android.util.Log;
 
 import android.os.Build;
 import android.view.GestureDetector;
@@ -63,6 +62,9 @@ public class PhotoViewAttacher implements IPhotoView, View.OnTouchListener,
     // contoll logging via LogManager.setDebugEnabled(boolean enabled);
     // public to allow customer settings-activity to change this
     public static boolean DEBUG = true; //!!! Log.isLoggable(LOG_TAG, Log.DEBUG);
+
+    /** prepended before all logging output */
+    private String debugPrefix = PhotoView.class.getSimpleName() + ":";
 
     static final Interpolator sInterpolator = new AccelerateDecelerateInterpolator();
 
@@ -166,7 +168,9 @@ public class PhotoViewAttacher implements IPhotoView, View.OnTouchListener,
     private int mIvTop, mIvRight, mIvBottom, mIvLeft;
     private FlingRunnable mCurrentFlingRunnable;
     private int mScrollEdge = EDGE_BOTH;
-    private float mBaseRotation;
+
+    /** remembers current image rotation im mSuppMatrix so it can be recalled if mSuppMatrix is recreated */
+    private float mBaseRotation = 0.0f;
 
     private boolean mZoomEnabled;
     private ScaleType mScaleType = ScaleType.FIT_CENTER;
@@ -226,7 +230,6 @@ public class PhotoViewAttacher implements IPhotoView, View.OnTouchListener,
                 });
 
         mGestureDetector.setOnDoubleTapListener(new DefaultOnDoubleTapListener(this));
-        mBaseRotation = 0.0f;
 
         // Finally, update the UI so that we're zoomable
         setZoomable(zoomable);
@@ -269,7 +272,7 @@ public class PhotoViewAttacher implements IPhotoView, View.OnTouchListener,
         }
 
         if (DEBUG) {
-            LogManager.getLogger().d(LOG_TAG,"cleanup");
+            LogManager.getLogger().d(LOG_TAG,debugPrefix +"cleanup");
         }
 
         final ImageView imageView = mImageView.get();
@@ -323,38 +326,24 @@ public class PhotoViewAttacher implements IPhotoView, View.OnTouchListener,
         }
 
         mSuppMatrix.set(finalMatrix);
-        setImageViewMatrix(getDrawMatrix(), "setDisplayMatrix");
+        setImageViewMatrix(getDrawMatrix(), "setDisplayMatrix", "");
         checkMatrixBounds();
 
         return true;
     }
 
-    public void setBaseRotation(final float degrees) {
-        mBaseRotation = degrees % 360;
-        update("setBaseRotation");
-        setRotationBy(mBaseRotation);
-        checkAndDisplayMatrix("setBaseRotation");
-    }
-
-    /**
-     * @deprecated use {@link #setRotationTo(float)}
-     */
-    @Override
-    public void setPhotoViewRotation(float degrees) {
-        mSuppMatrix.setRotate(degrees % 360);
-        checkAndDisplayMatrix("setPhotoViewRotation");
-    }
-
     @Override
     public void setRotationTo(float degrees) {
-        mSuppMatrix.setRotate(degrees % 360);
-        checkAndDisplayMatrix("setRotationTo");
+        mBaseRotation = degrees % 360;
+        mSuppMatrix.setRotate(mBaseRotation);
+        checkAndDisplayMatrix("setRotationTo", degrees);
     }
 
     @Override
     public void setRotationBy(float degrees) {
+        mBaseRotation = (mBaseRotation + degrees) % 360;
         mSuppMatrix.postRotate(degrees % 360);
-        checkAndDisplayMatrix("setRotationBy");
+        checkAndDisplayMatrix("setRotationBy", degrees);
     }
 
     public ImageView getImageView() {
@@ -367,7 +356,7 @@ public class PhotoViewAttacher implements IPhotoView, View.OnTouchListener,
         // If we don't have an ImageView, call cleanup()
         if (null == imageView) {
             cleanup();
-            LogManager.getLogger().i(LOG_TAG,
+            LogManager.getLogger().i(LOG_TAG,debugPrefix +
                     "ImageView no longer exists. You should not use this PhotoViewAttacher any more.");
         }
 
@@ -406,13 +395,13 @@ public class PhotoViewAttacher implements IPhotoView, View.OnTouchListener,
         }
 
         if (DEBUG) {
-            LogManager.getLogger().d(LOG_TAG,
+            LogManager.getLogger().d(LOG_TAG,debugPrefix +
                     String.format("onDrag: dx: %.2f. dy: %.2f", dx, dy));
         }
 
         ImageView imageView = getImageView();
         mSuppMatrix.postTranslate(dx, dy);
-        checkAndDisplayMatrix("onDrag");
+        checkAndDisplayMatrix("onDrag", "");
 
         /**
          * Here we decide whether to let the ImageView's parent to start taking
@@ -443,8 +432,7 @@ public class PhotoViewAttacher implements IPhotoView, View.OnTouchListener,
     public void onFling(float startX, float startY, float velocityX,
                         float velocityY) {
         if (DEBUG) {
-            LogManager.getLogger().d(
-                    LOG_TAG,
+            LogManager.getLogger().d(LOG_TAG,debugPrefix +
                     "onFling. sX: " + startX + " sY: " + startY + " Vx: "
                             + velocityX + " Vy: " + velocityY);
         }
@@ -501,7 +489,7 @@ public class PhotoViewAttacher implements IPhotoView, View.OnTouchListener,
     public void onScale(float scaleFactor, float focusX, float focusY) {
         if (DEBUG) {
             LogManager.getLogger().d(
-                    LOG_TAG,
+                    LOG_TAG,debugPrefix +
                     String.format("onScale: scale: %.2f. fX: %.2f. fY: %.2f",
                             scaleFactor, focusX, focusY));
         }
@@ -513,7 +501,7 @@ public class PhotoViewAttacher implements IPhotoView, View.OnTouchListener,
                 if (DEBUG) {
                     // !!!
                     LogManager.getLogger().d(
-                            LOG_TAG,
+                            LOG_TAG,debugPrefix +
                             "onScale: Reloading image from " + mImageReloadFile);
                 }
                 try {
@@ -526,7 +514,7 @@ public class PhotoViewAttacher implements IPhotoView, View.OnTouchListener,
                     Toast.makeText(imageView.getContext(), errorMessage, Toast.LENGTH_LONG).show();
 
                     LogManager.getLogger().e(
-                            LOG_TAG,
+                            LOG_TAG,debugPrefix +
                             "onScale: Not enought memory to reloading image from " + mImageReloadFile + " failed: " + e.getMessage());
                 }
 
@@ -541,7 +529,7 @@ public class PhotoViewAttacher implements IPhotoView, View.OnTouchListener,
             mLastFocusX=focusX;
             mLastFocusY=focusY;
             mSuppMatrix.postScale(scaleFactor, scaleFactor, focusX, focusY);
-            checkAndDisplayMatrix("onScale");
+            checkAndDisplayMatrix("onScale", scaleFactor);
         }
     }
 
@@ -559,7 +547,7 @@ public class PhotoViewAttacher implements IPhotoView, View.OnTouchListener,
                     if (null != parent) {
                         parent.requestDisallowInterceptTouchEvent(true);
                     } else {
-                        LogManager.getLogger().i(LOG_TAG, "onTouch getParent() returned null");
+                        LogManager.getLogger().i(LOG_TAG, debugPrefix +"onTouch getParent() returned null");
                     }
 
                     // If we're flinging, and the user presses down, cancel
@@ -693,7 +681,7 @@ public class PhotoViewAttacher implements IPhotoView, View.OnTouchListener,
             if (scale < mMinScale || scale > mMaxScale) {
                 LogManager
                         .getLogger()
-                        .i(LOG_TAG,
+                        .i(LOG_TAG,debugPrefix +
                                 "Scale must be within the range of minScale and maxScale");
                 return;
             }
@@ -703,7 +691,7 @@ public class PhotoViewAttacher implements IPhotoView, View.OnTouchListener,
                         focalX, focalY));
             } else {
                 mSuppMatrix.setScale(scale, scale, focalX, focalY);
-                checkAndDisplayMatrix("setScale");
+                checkAndDisplayMatrix("setScale", scale);
             }
         }
     }
@@ -781,10 +769,11 @@ public class PhotoViewAttacher implements IPhotoView, View.OnTouchListener,
     /**
      * Helper method that simply checks the Matrix, and then displays the result
      * @param why
+     * @param newValue
      */
-    private void checkAndDisplayMatrix(String why) {
+    private void checkAndDisplayMatrix(String why, Object newValue) {
         if (checkMatrixBounds()) {
-            setImageViewMatrix(getDrawMatrix(), why);
+            setImageViewMatrix(getDrawMatrix(), why, newValue);
         }
     }
 
@@ -921,17 +910,17 @@ public class PhotoViewAttacher implements IPhotoView, View.OnTouchListener,
      */
     private void resetMatrix(String why) {
         mSuppMatrix.reset();
-        setRotationBy(mBaseRotation);
-        setImageViewMatrix(getDrawMatrix(), why+ "-resetMatrix");
+        setRotationTo(mBaseRotation);
+        setImageViewMatrix(getDrawMatrix(), why+ "-resetMatrix", "");
         checkMatrixBounds();
     }
 
-    private void setImageViewMatrix(Matrix matrix, String why) {
+    private void setImageViewMatrix(Matrix matrix, String why, Object newValue) {
         ImageView imageView = getImageView();
         if (null != imageView) {
 
             if (DEBUG) {
-                LogManager.getLogger().d(LOG_TAG,"setImageViewMatrix " + why);
+                LogManager.getLogger().d(LOG_TAG,debugPrefix +"setImageViewMatrix " + why + " " + newValue);
             }
 
             checkImageViewScaleType();
@@ -1187,7 +1176,7 @@ public class PhotoViewAttacher implements IPhotoView, View.OnTouchListener,
 
         public void cancelFling() {
             if (DEBUG) {
-                LogManager.getLogger().d(LOG_TAG, "Cancel Fling");
+                LogManager.getLogger().d(LOG_TAG, debugPrefix +"Cancel Fling");
             }
             mScroller.forceFinished(true);
         }
@@ -1222,7 +1211,7 @@ public class PhotoViewAttacher implements IPhotoView, View.OnTouchListener,
 
             if (DEBUG) {
                 LogManager.getLogger().d(
-                        LOG_TAG,
+                        LOG_TAG,debugPrefix +
                         "fling. StartX:" + startX + " StartY:" + startY
                                 + " MaxX:" + maxX + " MaxY:" + maxY);
             }
@@ -1248,14 +1237,14 @@ public class PhotoViewAttacher implements IPhotoView, View.OnTouchListener,
 
                 if (DEBUG) {
                     LogManager.getLogger().d(
-                            LOG_TAG,
+                            LOG_TAG,debugPrefix +
                             "fling run(). CurrentX:" + mCurrentX + " CurrentY:"
                                     + mCurrentY + " NewX:" + newX + " NewY:"
                                     + newY);
                 }
 
                 mSuppMatrix.postTranslate(mCurrentX - newX, mCurrentY - newY);
-                setImageViewMatrix(getDrawMatrix(), "fling run");
+                setImageViewMatrix(getDrawMatrix(), "fling run", "");
 
                 mCurrentX = newX;
                 mCurrentY = newY;
@@ -1265,4 +1254,11 @@ public class PhotoViewAttacher implements IPhotoView, View.OnTouchListener,
             }
         }
     }
+
+    /** set text that will be prepended to all debug output */
+    @Override
+    public void setDebugPrefix(String debugPrefix) {
+        this.debugPrefix = getClass().getSimpleName() + "#" + debugPrefix + ":";
+    }
+
 }

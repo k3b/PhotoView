@@ -66,7 +66,7 @@ public class PhotoView extends ImageView implements IPhotoView {
 
     protected void init() {
         if (null == mAttacher || null == mAttacher.getImageView()) {
-            mAttacher = new PhotoViewAttacher(this);
+            mAttacher = createPhotoViewAttacher();
         }
 
         if (null != mPendingScaleType) {
@@ -75,12 +75,15 @@ public class PhotoView extends ImageView implements IPhotoView {
         }
     }
 
-    /**
-     * @deprecated use {@link #setRotationTo(float)}
-     */
+    /** factory method to be overwritten if you need different attacher functionality */
+    protected PhotoViewAttacher createPhotoViewAttacher() {
+        return new PhotoViewAttacher(this);
+    }
+
+    /** set text that will be prepended to all debug output */
     @Override
-    public void setPhotoViewRotation(float rotationDegree) {
-        mAttacher.setRotationTo(rotationDegree);
+    public void setDebugPrefix(String name) {
+        mAttacher.setDebugPrefix(name);
     }
 
     @Override
